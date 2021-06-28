@@ -2,6 +2,7 @@ package data
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -9,6 +10,7 @@ import (
 
 const databaseName = "./birthdays.db"
 const driverName = "sqlite3"
+
 const sqlCreateContactsTable = `
 	CREATE TABLE IF NOT EXISTS contacts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,10 +20,14 @@ const sqlCreateContactsTable = `
 		year INTEGER
 	);
 `
+const sqlInsertNewContact = "INSERT INTO contacts (name, month, day, year) VALUES (?, ?, ?, ?);"
+const sqlGetByContactName = "SELECT * FROM contacts WHERE name = ?;"
+const sqlGetByMonth = "SELECT * FROM contacts WHERE month=?;"
+const sqlGetByMonthAndDay = "SELECT * FROM contacts WHERE (month=? AND day=?);"
 
 const (
 	// Unknown represents a blank value, any part of the date we don't know
-	Unknown = iota
+	Unknown uint8 = iota
 
 	// January because remembering date numbers is hard
 	January
@@ -112,7 +118,7 @@ func (d *Database) InitializeDatabase() error {
 // Add takes a name which is the unique name for the contact and a dateID which is
 // the id for the date
 func (d *Database) Add(name string, month int, day int, year int) (id int64, err error) {
-	stmt, err := d.Prepare("INSERT INTO contacts (name, month, day, year) VALUES (?, ?, ?, ?);")
+	stmt, err := d.Prepare(sqlInsertNewContact)
 	if err != nil {
 		return
 	}
@@ -133,7 +139,7 @@ func (d *Database) Add(name string, month int, day int, year int) (id int64, err
 
 // GetByName takes a name and searches the database for that contact.
 func (d *Database) GetByName(name string) (contact Contact, err error) {
-	stmt, err := d.Prepare("SELECT * FROM contacts WHERE name = ?;")
+	stmt, err := d.Prepare(sqlGetByContactName)
 	if err != nil {
 		return
 	}
@@ -166,4 +172,57 @@ func (d *Database) GetByName(name string) (contact Contact, err error) {
 	contact.isInitialized = true
 
 	return
+}
+
+// GetByDate takes some day and month and figures out whose birthday it is on that day.
+// Month must not be Unknown (0). If day is set to Unknown, then anyone whose birthday
+// falls in that month will be returned.
+//
+// GetByDate assumes that you are using a correct date int, it does not check to make
+// sure that birthMonth or birthDay are out of range. If at all possible, use the
+// provided month constants to ensure you are setting correct months.
+func (d *Database) GetByDate(birthMonth uint8, birthDay uint8) ([]Contact, error) {
+	var query string
+	var args []interface{}
+	var id int64
+	var name string
+	var month int
+	var day int
+	var year int
+
+	contacts := make([]Contact, 0, 2)
+
+	if birthMonth == Unknown {
+		return nil, fmt.Errorf("birthMonth must be known")
+	}
+
+	if birthDay == Unknown {
+		query = sqlGetByMonth
+		args = []interface{}{birthMonth}
+	} else {
+		query = sqlGetByMonthAndDay
+		args = []interface{}{birthMonth, birthDay}
+
+	}
+
+	stmt, err := d.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := stmt.Query(args...)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		err := rows.Scan(&id, &name, &month, &day, &year)
+		if err != nil {
+			return nil, err
+		}
+
+		contacts = append(contacts, Contact{id, name, month, day, year, true})
+	}
+
+	return contacts, nil
 }
