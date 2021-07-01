@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/nolwn/go-birthday/data"
 )
@@ -53,22 +54,8 @@ func nameMonth(month uint8) string {
 		return ""
 	}
 
-	months := [12]string{
-		"January",
-		"February",
-		"March",
-		"April",
-		"May",
-		"June",
-		"July",
-		"August",
-		"September",
-		"October",
-		"November",
-		"December",
-	}
-
-	return months[month-1]
+	monthStruct := months[month-1]
+	return strings.Title(monthStruct.fullName)
 }
 
 func nameDay(day uint8) string {

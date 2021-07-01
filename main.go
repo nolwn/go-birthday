@@ -17,9 +17,7 @@ func main() {
 
 	args := os.Args[1:]
 
-	if len(args) == 0 {
-		fmt.Print(birthdaysToday(db))
-	}
+	fmt.Println(parseArguments(db, args))
 }
 
 func closeDatabase(db data.Database) {
